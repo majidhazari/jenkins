@@ -80,6 +80,7 @@ services:
 
   jenkins-agent:
     image: jenkins/inbound-agent:latest-jdk21
+    container_name: jenkins-agent
     restart: unless-stopped
     networks: [ jenkins ]
     environment:
