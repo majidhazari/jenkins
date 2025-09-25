@@ -2,7 +2,27 @@
 
 Deploy Jenkins using Docker
 
-# TLS DinD
+Here’s a production-ready `docker-compose.yml` that follows the **official Jenkins + Docker-in-Docker (dind)** pattern so Jenkins can build Docker images and push them to your registry. It mirrors the current steps from the Jenkins docs and use a custom Jenkins image that includes the Docker CLI and the `docker-workflow` plugin.
+
+## Quick start
+
+1. Pull this repository into a folder, then:
+
+   ```bash
+   docker compose build
+   docker compose up -d
+   ```
+
+2. Open `http://localhost:8080` and complete the setup. To get the unlock password:
+
+   ```bash
+   docker exec -it $(docker ps -qf "name=jenkins") \
+     cat /var/jenkins_home/secrets/initialAdminPassword
+   ```
+
+---
+
+## TLS DinD
 
 1. **Confirm the certs exist** (they’re created automatically by `docker:dind` when `DOCKER_TLS_CERTDIR=/certs` is set):
 
