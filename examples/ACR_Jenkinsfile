@@ -102,9 +102,9 @@ pipeline {
           }
         }
 
-        stage('Debug env') {
-          steps { sh 'printenv | sort | egrep "BRANCH|CHANGE|TAG|GIT"' }
-        }
+        // stage('Debug env') {
+        //   steps { sh 'printenv | sort | egrep "BRANCH|CHANGE|TAG|GIT"' }
+        // }
 
         stage('Push to ACR') {
           when {
