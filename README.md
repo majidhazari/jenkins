@@ -16,7 +16,7 @@ Here’s a production-ready `docker-compose.yml` that follows the **official Jen
 2. Open `http://localhost:8080` and complete the setup. To get the unlock password:
 
    ```bash
-   docker exec -it $(docker ps -qf "name=jenkins") \
+   docker exec -it $(docker ps -qf "name=^/jenkins$") \
      cat /var/jenkins_home/secrets/initialAdminPassword
    ```
 
