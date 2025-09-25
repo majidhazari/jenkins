@@ -28,7 +28,7 @@ services:
 
   docker:
     image: docker:28-dind
-    container_name: jenkins_dind
+    container_name: jenkins-dind
     privileged: true
     restart: unless-stopped
     networks: [ jenkins ]
@@ -57,15 +57,18 @@ services:
       - DOCKER_HOST=tcp://docker:2375
       #- DOCKER_CERT_PATH=/certs/client
       #- DOCKER_TLS_VERIFY=1
+      - CASC_JENKINS_CONFIG=/var/jenkins_home/casc.yaml # JCasC entrypoint
     ports:
       - "8080:8080" # Jenkins UI
     # - "50000:50000"  # inbound agents (optional)
     volumes:
       - jenkins-data:/var/jenkins_home
       #- jenkins-docker-certs:/certs/client:ro
+      - ./casc.yaml:/var/jenkins_home/casc.yaml:ro
 
   dind-janitor:
     image: docker:28-cli
+    container_name: jenkins-dind-janitor
     restart: unless-stopped
     networks: [ jenkins ]
     environment:

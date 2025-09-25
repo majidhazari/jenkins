@@ -1,0 +1,3 @@
+jenkins:
+  systemMessage: "Configured by JCasC. Builds run on ephemeral Docker agents."
+  numExecutors: 0 # don’t build on controller
