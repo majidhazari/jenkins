@@ -55,6 +55,38 @@ Those files come from the DinD sidecar and are mounted into Jenkins at `/certs/c
 
 ---
 
+## Setting up Jenkins Agent
+
+To configure the Jenkins agent, follow these steps:
+
+1. **Launch Jenkins**:
+   Ensure that Jenkins is running. Use the following commands to start Jenkins if it is not already running:
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Retrieve the Linux Docker Node Secret**:
+   * Open the Jenkins UI at `http://localhost:8080`.
+   * Navigate to **Manage Jenkins → Manage Nodes and Clouds → linux-docker**.
+   * Copy the **Secret** value for the `linux-docker` node.
+
+3. **Create the `.env` File**:
+   * In the root directory of this project, create a file named `.env`.
+   * Add the following line to the `.env` file, replacing `<SECRET>` with the secret value you copied in step 2:
+
+     ```env
+     JENKINS_SECRET=<SECRET>
+     ```
+
+   Alternatively, you can export the secret as an environment variable in your shell:
+
+   ```bash
+   export JENKINS_SECRET=<SECRET>
+   ```
+
+This secret will be used by the `jenkins-agent` container to connect to the Jenkins controller.
+
 [1]: https://www.jenkins.io/doc/book/installing/docker/ "Docker"
 [2]: https://www.jenkins.io/doc/book/using/using-credentials/ "Using credentials"
 [3]: https://plugins.jenkins.io/docker-plugin/ "Docker | Jenkins plugin"

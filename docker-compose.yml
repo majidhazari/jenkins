@@ -87,7 +87,7 @@ services:
       - JENKINS_URL=http://jenkins:8080
       - JENKINS_AGENT_NAME=linux-docker
       - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
-      - JENKINS_SECRET=sgeOSj1ehHI0NkGolcjSjic8HdRcZasymiN7nfSgh8 # openssl rand -base64 32
+      - JENKINS_SECRET=${JENKINS_SECRET:-} # set this in your .env file or export in shell
       - DOCKER_HOST=tcp://docker:2375
       - WEB_SOCKET=true # optional but convenient; no 50000 needed
     depends_on:
