@@ -1,193 +1,173 @@
 pipeline {
-  //agent { label 'docker-agent' }
-  agent any
-  options {
-    timestamps()
-    ansiColor('xterm')
-    timeout(time: 20, unit: 'MINUTES')
-    // disableConcurrentBuilds()
-    disableConcurrentBuilds abortPrevious: true
-    retry(3)
-  }
-  environment {
-    // === Required env (set via Jenkins job parameters or environment) ===
-    ACR_NAME = 'ihadlab-f2bnbba0fgceaff9' // e.g., contosoregistry
-    ACR_LOGIN_SERVER = "${ACR_NAME}.azurecr.io" // e.g., contosoregistry.azurecr.io
-    IMAGE_NAME = 'myapp' // repo/name inside ACR
-    // Build optimizations
-    DOCKER_BUILDKIT = '1' // enable BuildKit
-    BUILDKIT_PROGRESS = 'plain'
-  }
-
-  parameters {
-    string(name: 'IMAGE_NAME', defaultValue: 'myapp', description: 'Repository name in ACR', trim: true)
-    booleanParam(name: 'FORCE_PUSH', defaultValue: false, description: 'Allow pushing from non-main branches')
-  }
-
-  stages {
-    stage('Clean Workspace at start') {
-      steps {
-        cleanWs() // This will delete the workspace content before the next steps
+    //agent { label 'docker-agent' }
+    agent any
+    options {
+        timestamps()
+        ansiColor('xterm')
+        timeout(time: 20, unit: 'MINUTES')
+        // disableConcurrentBuilds()
+        disableConcurrentBuilds abortPrevious: true
+        retry(3)
       }
+    environment {
+        // === Required env (set via Jenkins job parameters or environment) ===
+        ACR_NAME          = 'contosoregistry'
+        ACR_LOGIN_SERVER  = "${ACR_NAME}.azurecr.io"            // e.g., contosoregistry.azurecr.io
+        // Build optimizations
+        DOCKER_BUILDKIT   = '1'                                  // enable BuildKit
+        BUILDKIT_PROGRESS = 'plain'
     }
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    
+    parameters {
+        string(name: 'IMAGE_NAME', defaultValue: 'myapp', description: 'Repository name in ACR', trim: true)
+        booleanParam(name: 'FORCE_PUSH', defaultValue: false, description: 'Allow pushing from non-main branches')
     }
 
-    stage('Compute tags & metadata') {
-      steps {
-        script {
-          // e.g., 20250925T235901Z %Y%m%dT%H%M%SZ
-          env.DATE_TAG = sh(script: "date -u +%Y%m%dT%H%M", returnStdout: true).trim()
-          env.SHORT_SHA = sh(script: "git rev-parse --short=7 HEAD", returnStdout: true).trim()
-
-          def tags = [env.DATE_TAG, env.SHORT_SHA]
-          if (env.TAG_NAME) { // release build, e.g., v1.2.3
-            tags += [env.TAG_NAME, // v1.2.3
-              env.TAG_NAME.replaceAll('(\\d+)\\.(\\d+)\\.(\\d+)', 'v$1.$2'), // v1.2
-              env.TAG_NAME.replaceAll('(\\d+)\\.(\\d+)\\.(\\d+)', 'v$1')
-            ] // v1
-          } else {
-            tags += ["${env.BRANCH_NAME ?: 'ci'}-${SHORT_SHA}"] // feature-x-2c2af3d
-          }
-          env.TAGS_CSV = tags.join(',') // strings travel well
-
-          // Build labels (OCI annotations)
-          env.OCI_LABELS = [
-            "org.opencontainers.image.created=${env.DATE_TAG}",
-            "org.opencontainers.image.title=${params.IMAGE_NAME}",
-            "org.opencontainers.image.revision=${env.GIT_COMMIT ?: ''}",
-            "org.opencontainers.image.source=${env.GIT_URL ?: ''}",
-            "org.opencontainers.image.version=${env.DATE_TAG}"
-          ].collect {
-            "--label ${it}"
-          }.join(' ')
+    
+    stages {
+        stage('Clean Workspace at start') {
+            steps {
+                cleanWs() // This will delete the workspace content before the next steps
+            }
         }
-      }
-    }
-
-    stage('Docker build') {
-      steps {
-        script {
-          // Full image refs
-          def dtImage = "${ACR_LOGIN_SERVER}/${params.IMAGE_NAME}:${env.DATE_TAG}"
-          def latestImg = "${ACR_LOGIN_SERVER}/${params.IMAGE_NAME}:latest"
-          env.DT_IMAGE = dtImage
-          env.L_IMAGE = latestImg
-
-          // // Use Docker Pipeline plugin’s engine to build once, then tag twice
-          // // (uses local engine on the agent)
-          // sh """
-          //   set -euxo pipefail
-          //   docker build \
-          //     --pull \
-          //     ${OCI_LABELS} \
-          //     -t ${DT_IMAGE} \
-          //     -f Dockerfile .
-          //   docker tag ${DT_IMAGE} ${L_IMAGE}
-          // """
-          // Build one image (date tag) with Docker Pipeline
-          //def repo     = "${env.ACR_LOGIN_SERVER}/${params.IMAGE_NAME}"
-          //def dateTag  = env.DATE_TAG                     // e.g. 20250925T235901Z (set earlier)
-          //def imgRef   = "${repo}:${dateTag}"
-
-          // You can pass extra docker build args as the 2nd parameter (ends with build context path)
-          // Here we pull latest bases, pass OCI labels, pick Dockerfile in root, and use cwd as context.
-          def built = docker.build(
-            dtImage,
-            "--pull ${env.OCI_LABELS} -f Dockerfile ."
-          )
-
-          //// Create the 'latest' tag locally so we can push it in the next stage
-          //sh "docker tag ${dtImage} ${latestImg}"
+        stage('Checkout') {
+          steps { checkout scm }
         }
-      }
-    }
 
-    stage('Debug env') {
-      steps {
-        sh 'printenv | sort | egrep "BRANCH|CHANGE|TAG|GIT"'
-      }
-    }
+        stage('Compute tags & metadata') {
+          steps {
+            script {
+              env.IMAGE_NAME = normalizeImageName(params.IMAGE_NAME)
+              // e.g., 20250925T235901Z %Y%m%dT%H%M%SZ
+              env.DATE_TAG = sh(script: "date -u +%Y%m%dT%H%M", returnStdout: true).trim()
+              env.SHORT_SHA = sh(script: "git rev-parse --short=7 HEAD", returnStdout: true).trim()
 
-    stage('Push to ACR') {
-      when {
-        anyOf {
-          // Multibranch: BRANCH_NAME is 'main' or 'master'
-          expression {
-            (env.BRANCH_NAME ? : '').matches('^(main|master)$')
-          }
-
-          // Classic Pipeline + Git plugin: GIT_BRANCH is like 'origin/main'
-          expression {
-            (env.GIT_BRANCH ? : '').matches('.*/(main|master)$')
-          }
-
-          // Build from a Git tag (e.g., release tags)
-          buildingTag()
-
-          // (Optional) Allow PRs targeting main
-          allOf {
-            expression {
-              env.CHANGE_ID
-            } // only true in Multibranch PR builds
-            expression {
-              (env.CHANGE_TARGET ? : '') == 'main'
+            def tags = [env.DATE_TAG, env.SHORT_SHA]
+            if (env.TAG_NAME) { // release build, e.g., v1.2.3
+                tags += [ env.TAG_NAME,                       // v1.2.3
+                          env.TAG_NAME.replaceAll('(\\d+)\\.(\\d+)\\.(\\d+)', 'v$1.$2'), // v1.2
+                          env.TAG_NAME.replaceAll('(\\d+)\\.(\\d+)\\.(\\d+)', 'v$1') ]   // v1
+              } else {
+                tags += ["${env.BRANCH_NAME ?: 'ci'}-${SHORT_SHA}"]  // feature-x-2c2af3d
+              }
+            env.TAGS_CSV   = tags.join(',')                 // strings travel well
+    
+              // Build labels (OCI annotations)
+              env.OCI_LABELS = [
+                "org.opencontainers.image.created=${env.DATE_TAG}",
+                "org.opencontainers.image.title=${env.IMAGE_NAME}",
+                "org.opencontainers.image.revision=${env.GIT_COMMIT ?: ''}",
+                "org.opencontainers.image.source=${env.GIT_URL ?: ''}",
+                "org.opencontainers.image.version=${env.DATE_TAG}"
+              ].collect { "--label ${it}" }.join(' ')
             }
           }
-          expression {
-            return params.FORCE_PUSH as boolean
+        }
+
+        stage('Docker build') {
+          steps {
+            script {
+              // Full image refs
+              def dtImage   = "${ACR_LOGIN_SERVER}/${env.IMAGE_NAME}:${env.DATE_TAG}"
+              def latestImg = "${ACR_LOGIN_SERVER}/${env.IMAGE_NAME}:latest"
+              env.DT_IMAGE  = dtImage
+              env.L_IMAGE   = latestImg
+    
+              // // Use Docker Pipeline plugin’s engine to build once, then tag twice
+              // // (uses local engine on the agent)
+              // sh """
+              //   set -euxo pipefail
+              //   docker build \
+              //     --pull \
+              //     ${OCI_LABELS} \
+              //     -t ${DT_IMAGE} \
+              //     -f Dockerfile .
+              //   docker tag ${DT_IMAGE} ${L_IMAGE}
+              // """
+              // Build one image (date tag) with Docker Pipeline
+              //def repo     = "${env.ACR_LOGIN_SERVER}/${env.IMAGE_NAME}"
+              //def dateTag  = env.DATE_TAG                     // e.g. 20250925T235901Z (set earlier)
+              //def imgRef   = "${repo}:${dateTag}"
+        
+              // You can pass extra docker build args as the 2nd parameter (ends with build context path)
+              // Here we pull latest bases, pass OCI labels, pick Dockerfile in root, and use cwd as context.
+              def built = docker.build(
+                dtImage,
+                "--pull ${env.OCI_LABELS} -f Dockerfile ."
+              )
+        
+              //// Create the 'latest' tag locally so we can push it in the next stage
+              //sh "docker tag ${dtImage} ${latestImg}"
+            }
           }
         }
-      } // push only from protected branches
-      steps {
+
+        stage('Debug env') {
+          steps { sh 'printenv | sort | egrep "BRANCH|CHANGE|TAG|GIT"' }
+        }
+
+        stage('Push to ACR') {
+          when {
+            anyOf {
+              // Multibranch: BRANCH_NAME is 'main' or 'master'
+              expression { (env.BRANCH_NAME ?: '').matches('^(main|master)$') }
+        
+              // Classic Pipeline + Git plugin: GIT_BRANCH is like 'origin/main'
+              expression { (env.GIT_BRANCH  ?: '').matches('.*/(main|master)$') }
+        
+              // Build from a Git tag (e.g., release tags)
+              buildingTag()
+        
+              // (Optional) Allow PRs targeting main
+              allOf {
+                expression { env.CHANGE_ID }               // only true in Multibranch PR builds
+                expression { (env.CHANGE_TARGET ?: '') == 'main' }
+              }
+              expression { return params.FORCE_PUSH as boolean }
+            }
+          } // push only from protected branches
+          steps {
+            script {
+                def tags = (env.TAGS_CSV ?: '').split(',') as List
+              // Jenkins credentials: create a "Username with password" credential whose
+              // username = Service Principal appId, password = SP secret.
+              // ID example: 'acr-sp-jenkins'
+              docker.withRegistry("https://${env.ACR_LOGIN_SERVER}", 'acr-sp-jenkins') {
+                def built = docker.image(env.DT_IMAGE)  // handle to the date-tagged image you built
+                built.push()            // push date tag
+                built.push('latest')    // push 'latest' (plugin will tag & push)
+                //tags.each { t -> built.push(t) }
+              }
+            }
+          }
+        }
+      stage('Clean Workspace at end') {
+            steps {
+                cleanWs()
+            }
+        }
+    }
+
+    post {
+      always {
         script {
-          def tags = (env.TAGS_CSV ? : '').split(',') as List
-          // Jenkins credentials: create a "Username with password" credential whose
-          // username = Service Principal appId, password = SP secret.
-          // ID example: 'acr-sp-jenkins'
-          docker.withRegistry("https://${env.ACR_LOGIN_SERVER}", 'acr-sp-jenkins') {
-            def built = docker.image(env.DT_IMAGE) // handle to the date-tagged image you built
-            built.push() // push date tag
-            built.push('latest') // push 'latest' (plugin will tag & push)
-            //tags.each { t -> built.push(t) }
-          }
+          // Best-effort local cleanup after push
+          // (Docker Pipeline has no prune/remove API; use CLI)
+          sh '''
+            set +e
+            docker rmi "$DT_IMAGE" "$L_IMAGE" 2>/dev/null || true
+            
+          '''
+            //docker image prune -af   || true   # remove unused images
+            //docker builder prune -af || true   # drop BuildKit cache
         }
       }
-    }
-    stage('Clean Workspace at end') {
-      steps {
-        cleanWs()
+      success {
+        // Optional: record provenance; harmless if the step isn’t installed
+        // Requires Docker Traceability plugin, otherwise omit.
+        // dockerFingerprintFrom image: env.DT_IMAGE, dockerfile: 'Dockerfile'
+        echo "Pushed: ${env.DT_IMAGE} and ${env.L_IMAGE}"
       }
     }
-  }
-
-  post {
-    always {
-      script {
-        // Best-effort local cleanup after push
-        // (Docker Pipeline has no prune/remove API; use CLI)
-        sh ''
-        '
-        set + e
-        docker rmi "$DT_IMAGE"
-        "$L_IMAGE"
-        2 > /dev/null || true
-
-        ''
-        '
-        //docker image prune -af   || true   # remove unused images
-        //docker builder prune -af || true   # drop BuildKit cache
-      }
-    }
-    success {
-      // Optional: record provenance; harmless if the step isn’t installed
-      // Requires Docker Traceability plugin, otherwise omit.
-      // dockerFingerprintFrom image: env.DT_IMAGE, dockerfile: 'Dockerfile'
-      echo "Pushed: ${env.DT_IMAGE} and ${env.L_IMAGE}"
-    }
-  }
 
 }
