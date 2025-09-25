@@ -1,0 +1,64 @@
+name: jenkins-stack
+
+networks:
+  jenkins:
+    driver: bridge
+
+volumes:
+  jenkins-data:
+  jenkins-docker-certs:
+
+services:
+  # # Docker daemon for builds (Docker-in-Docker with TLS)
+  # docker-tls:
+  #   image: docker:28-dind
+  #   container_name: jenkins-dind-tls
+  #   privileged: true
+  #   restart: unless-stopped
+  #   networks: [jenkins]
+  #   environment:
+  #     - DOCKER_TLS_CERTDIR=/certs
+  #   volumes:
+  #     - jenkins-docker-certs:/certs/client
+  #     - jenkins-data:/var/jenkins_home
+  #   #ports:
+  #   #  - "2376:2376"   # optional: expose if you want to debug
+  #   command: ["--storage-driver=overlay2"]
+
+  docker:
+    image: docker:28-dind
+    container_name: jenkins_dind
+    privileged: true
+    restart: unless-stopped
+    networks: [jenkins]
+    environment:
+      - DOCKER_TLS_CERTDIR=        # disable TLS → daemon will use 2375
+    command:
+      - "--host=tcp://0.0.0.0:2375"   # listen on TCP (no TLS)
+     # - "--host=unix:///var/run/docker.sock"
+      - "--tls=false"                 # avoid the 15s non-TLS delay
+      - "--storage-driver=overlay2"
+    #ports:
+    #  - "2375:2375"                   # optional: expose for troubleshooting
+
+  # Jenkins controller with Docker CLI + docker-workflow plugin
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    image: myjenkins:lts-docker
+    container_name: jenkins
+    depends_on:
+      - docker
+    restart: unless-stopped
+    networks: [jenkins]
+    environment:
+      - DOCKER_HOST=tcp://docker:2375
+      #- DOCKER_CERT_PATH=/certs/client
+      #- DOCKER_TLS_VERIFY=1
+    ports:
+      - "8080:8080"    # Jenkins UI
+     # - "50000:50000"  # inbound agents (optional)
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      #- jenkins-docker-certs:/certs/client:ro
