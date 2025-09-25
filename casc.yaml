@@ -1,7 +1,15 @@
 jenkins:
   systemMessage: "Configured by JCasC."
-  numExecutors: 1 # don't run builds concurrently on controller
+  numExecutors: 0 # do not run builds on controller
   noUsageStatistics: true
+  nodes:
+    - permanent:
+        labelString: "linux-docker"
+        launcher: "inbound"
+        name: "linux-docker"
+        numExecutors: 1 # don't run builds concurrently on controller
+        remoteFS: "/home/jenkins/agent"
+        retentionStrategy: "always"
 unclassified:
   buildDiscarders:
     configuredBuildDiscarders:
