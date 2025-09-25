@@ -67,7 +67,16 @@ services:
       - ./casc.yaml:/var/jenkins_home/casc.yaml:ro
 
   dind-janitor:
-    image: docker:28-cli
+    # image: docker:28-cli
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM docker:28-cli
+        COPY janitor.sh /usr/local/bin/janitor.sh
+        RUN chmod +x /usr/local/bin/janitor.sh
+        ENTRYPOINT ["/usr/local/bin/janitor.sh"]
+
+    image: myjanitor:28-cli
     container_name: jenkins-dind-janitor
     restart: unless-stopped
     networks: [ jenkins ]
@@ -77,7 +86,7 @@ services:
       - PRUNE_STEP_HOURS=168 # prune images older than 7d per step
       - SLEEP_SECONDS=3600 # run hourly
       - PROTECT_LABEL=storage=do_not_delete # optional keep-label
-    volumes:
-      - ./janitor.sh:/usr/local/bin/janitor.sh:ro
-    entrypoint: [ "/bin/sh", "-c" ]
-    command: [ "chmod +x /usr/local/bin/janitor.sh && /usr/local/bin/janitor.sh" ]
+    # volumes:
+    #   - ./janitor.sh:/usr/local/bin/janitor.sh:ro
+    # entrypoint: [ "/bin/sh", "-c" ]
+    # command: [ "chmod +x /usr/local/bin/janitor.sh && /usr/local/bin/janitor.sh" ]
