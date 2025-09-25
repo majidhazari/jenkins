@@ -82,7 +82,7 @@ services:
     networks: [ jenkins ]
     environment:
       - DOCKER_HOST=tcp://docker:2375
-      - CAP_BYTES=$((30 * 1024 * 1024 * 1024)) # 30 GB cap
+      - CAP_GB=30 # 30 GB cap
       - PRUNE_STEP_HOURS=168 # prune images older than 7d per step
       - SLEEP_SECONDS=3600 # run hourly
       - PROTECT_LABEL=storage=do_not_delete # optional keep-label
