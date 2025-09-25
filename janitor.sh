@@ -20,6 +20,20 @@ while :; do
   USED="$(images_bytes || echo 0)"
   echo "[janitor] images used = $USED bytes (cap=$CAP_BYTES)"
 
+  # # 1) If ANY container is running, skip (covers builds and buildx/buildkit workers)
+  # if [ -n "$(docker ps -q)" ]; then
+  #   echo "[janitor] active containers detected; skipping this cycle"
+  #   sleep "$SLEEP_SECONDS"
+  #   continue
+  # fi
+
+  # 2) Extra safety: if any buildx/buildkit containers are present/running, skip
+  if docker ps --format '{{.Names}}' | grep -q 'buildx_buildkit'; then
+    echo "[janitor] buildx/buildkit activity detected; skipping"
+    sleep "$SLEEP_SECONDS"
+    continue
+  fi
+
   # Always keep build cache in check (fast and safe)
   docker builder prune -af --keep-storage 1GB || true
 
