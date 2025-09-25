@@ -6,7 +6,8 @@ networks:
 
 volumes:
   jenkins-data:
-  jenkins-docker-certs:
+    # jenkins-docker-certs:
+
 
 services:
   # # Docker daemon for builds (Docker-in-Docker with TLS)
@@ -30,18 +31,18 @@ services:
     container_name: jenkins_dind
     privileged: true
     restart: unless-stopped
-    networks: [jenkins]
+    networks: [ jenkins ]
     environment:
-      - DOCKER_TLS_CERTDIR=        # disable TLS → daemon will use 2375
+      - DOCKER_TLS_CERTDIR= # disable TLS → daemon will use 2375
     command:
-      - "--host=tcp://0.0.0.0:2375"   # listen on TCP (no TLS)
-     # - "--host=unix:///var/run/docker.sock"
-      - "--tls=false"                 # avoid the 15s non-TLS delay
+      - "--host=tcp://0.0.0.0:2375" # listen on TCP (no TLS)
+      # - "--host=unix:///var/run/docker.sock"
+      - "--tls=false" # avoid the 15s non-TLS delay
       - "--storage-driver=overlay2"
     #ports:
     #  - "2375:2375"                   # optional: expose for troubleshooting
 
-  # Jenkins controller with Docker CLI + docker-workflow plugin
+    # Jenkins controller with Docker CLI + docker-workflow plugin
   jenkins:
     build:
       context: .
@@ -51,14 +52,29 @@ services:
     depends_on:
       - docker
     restart: unless-stopped
-    networks: [jenkins]
+    networks: [ jenkins ]
     environment:
       - DOCKER_HOST=tcp://docker:2375
       #- DOCKER_CERT_PATH=/certs/client
       #- DOCKER_TLS_VERIFY=1
     ports:
-      - "8080:8080"    # Jenkins UI
-     # - "50000:50000"  # inbound agents (optional)
+      - "8080:8080" # Jenkins UI
+    # - "50000:50000"  # inbound agents (optional)
     volumes:
       - jenkins-data:/var/jenkins_home
       #- jenkins-docker-certs:/certs/client:ro
+
+  dind-janitor:
+    image: docker:28-cli
+    restart: unless-stopped
+    networks: [ jenkins ]
+    environment:
+      - DOCKER_HOST=tcp://docker:2375
+      - CAP_BYTES=$((30 * 1024 * 1024 * 1024)) # 30 GB cap
+      - PRUNE_STEP_HOURS=168 # prune images older than 7d per step
+      - SLEEP_SECONDS=3600 # run hourly
+      - PROTECT_LABEL=storage=do_not_delete # optional keep-label
+    volumes:
+      - ./janitor.sh:/usr/local/bin/janitor.sh:ro
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: [ "chmod +x /usr/local/bin/janitor.sh && /usr/local/bin/janitor.sh" ]
