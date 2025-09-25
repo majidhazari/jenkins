@@ -16,4 +16,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 USER jenkins
 # Minimal plugin set for Docker Pipelines; add more as you need
-RUN jenkins-plugin-cli --plugins "blueocean docker-plugin docker-workflow configuration-as-code credentials-binding"
+RUN jenkins-plugin-cli --plugins "blueocean docker-plugin docker-workflow configuration-as-code credentials-binding ansicolor build-discarder"

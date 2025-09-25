@@ -1,3 +1,13 @@
 jenkins:
   systemMessage: "Configured by JCasC."
   numExecutors: 1 # don't run builds concurrently on controller
+  noUsageStatistics: true
+unclassified:
+  buildDiscarders:
+    configuredBuildDiscarders:
+      - "jobBuildDiscarder"
+      - defaultBuildDiscarder:
+          discarder:
+            logRotator:
+              daysToKeepStr: "60"
+              numToKeepStr: "50"
