@@ -41,7 +41,12 @@ services:
       - "--storage-driver=overlay2"
     #ports:
     #  - "2375:2375"                   # optional: expose for troubleshooting
-
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:2375/_ping | grep -q OK" ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     # Jenkins controller with Docker CLI + docker-workflow plugin
   jenkins:
     build:
@@ -50,7 +55,8 @@ services:
     image: myjenkins:lts-docker
     container_name: jenkins
     depends_on:
-      - docker
+      docker:
+        condition: service_healthy # wait for DinD to be reachable
     restart: unless-stopped
     networks: [ jenkins ]
     environment:
@@ -65,6 +71,12 @@ services:
       - jenkins-data:/var/jenkins_home
       #- jenkins-docker-certs:/certs/client:ro
       - ./casc.yaml:/var/jenkins_home/casc.yaml:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8080/login >/dev/null || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
 
   dind-janitor:
     # image: docker:28-cli
