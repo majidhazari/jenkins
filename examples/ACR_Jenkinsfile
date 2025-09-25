@@ -5,7 +5,8 @@ pipeline {
     timestamps()
     ansiColor('xterm')
     timeout(time: 20, unit: 'MINUTES')
-    disableConcurrentBuilds()
+    // disableConcurrentBuilds()
+    disableConcurrentBuilds abortPrevious: true
     retry(3)
   }
   environment {
@@ -19,7 +20,7 @@ pipeline {
   }
 
   parameters {
-    string(name: 'IMAGE_NAME', defaultValue: 'myapp', description: 'Repository name in ACR')
+    string(name: 'IMAGE_NAME', defaultValue: 'myapp', description: 'Repository name in ACR', trim: true)
     booleanParam(name: 'FORCE_PUSH', defaultValue: false, description: 'Allow pushing from non-main branches')
   }
 
