@@ -11,6 +11,26 @@ jenkins:
         remoteFS: "/home/jenkins/agent"
         retentionStrategy: "always"
 unclassified:
+  globalLibraries:
+    libraries:
+      - name: "majidhazari_jenkins-lib" # referenced in @Library('majidhazari_jenkins-lib')
+        defaultVersion: "main" # branch / tag to use by default
+        implicit: true # true = auto-load for all pipelines
+        allowVersionOverride: false # don't let pipelines request another version
+        includeInChangesets: true # show lib revs in build changes
+        retriever:
+          modernSCM:
+            libraryPath: "./"
+            scm:
+              git:
+                remote: "https://github.com/majidhazari/jenkins-lib"
+                traits:
+                  - "gitBranchDiscovery"
+        # # (Optional) cache behavior to avoid recloning every run:
+        # cachingConfiguration:
+        #   excludedVersionsStr: "main develop"
+        #   refreshTimeMinutes: 0
+
   buildDiscarders:
     configuredBuildDiscarders:
       - "jobBuildDiscarder"
