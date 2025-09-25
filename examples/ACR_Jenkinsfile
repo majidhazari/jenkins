@@ -25,7 +25,7 @@ pipeline {
   }
 
   stages {
-    stage('Clean Workspace') {
+    stage('Clean Workspace at start') {
       steps {
         cleanWs() // This will delete the workspace content before the next steps
       }
@@ -157,9 +157,9 @@ pipeline {
         }
       }
     }
-    stage('Clean Workspace') {
+    stage('Clean Workspace at end') {
       steps {
-        cleanWs() // This will delete the workspace content before the next steps
+        cleanWs()
       }
     }
   }
