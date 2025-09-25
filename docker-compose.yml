@@ -75,8 +75,23 @@ services:
       test: [ "CMD-SHELL", "curl -fsS http://localhost:8080/login >/dev/null || exit 1" ]
       interval: 15s
       timeout: 5s
-      retries: 20
-      start_period: 120s
+      retries: 10
+      start_period: 20s
+
+  jenkins-agent:
+    image: jenkins/inbound-agent:latest-jdk21
+    restart: unless-stopped
+    networks: [ jenkins ]
+    environment:
+      - JENKINS_URL=http://jenkins:8080
+      - JENKINS_AGENT_NAME=linux-docker
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+      - JENKINS_SECRET=sgeOSj1ehHI0NkGolcjSjic8HdRcZasymiN7nfSgh8 # openssl rand -base64 32
+      - DOCKER_HOST=tcp://docker:2375
+      - WEB_SOCKET=true # optional but convenient; no 50000 needed
+    depends_on:
+      jenkins:
+        condition: service_healthy
 
   dind-janitor:
     # image: docker:28-cli
